@@ -16,6 +16,9 @@ public actor SQLiteStore<I: Codable & Equatable>: CollectionStore {
 //    private let insertStatement: FMStatement?
 //    private let deleteStatement: FMStatement?
 
+    let encoder: JSONEncoder
+    let decoder: JSONDecoder
+
     public init(name: String, databaseURL: URL) {
         self.name = name
         self.db = FMDatabase(url: databaseURL)
@@ -24,6 +27,8 @@ public actor SQLiteStore<I: Codable & Equatable>: CollectionStore {
         db.executeStatements("CREATE TABLE IF NOT EXISTS \(name) (data BLOB)")
 //        self.insertStatement = try? db.prepare("INSERT INTO \(name) (data) VALUES (?)").statement
 //        self.deleteStatement = try? db.prepare("DELETE FROM \(name) WHERE data = ?").statement
+        self.encoder = JSONEncoder()
+        self.decoder = JSONDecoder()
     }
 
     public init(name: String) {
@@ -33,11 +38,13 @@ public actor SQLiteStore<I: Codable & Equatable>: CollectionStore {
     }
 
     public func insert(item: I) async throws {
-        try db.executeUpdate("INSERT INTO \(name) (data) VALUES (?)", values: [item])
+        let data = try encoder.encode(item)
+        try db.executeUpdate("INSERT INTO \(name) (data) VALUES (?)", values: [data])
     }
 
     public func remove(item: I) async throws {
-        try db.executeUpdate("DELETE FROM \(name) WHERE data = ?", values: [item])
+        let data = try encoder.encode(item)
+        try db.executeUpdate("DELETE FROM \(name) WHERE data = ?", values: [data])
     }
 
     public func query() async throws -> [I] {
