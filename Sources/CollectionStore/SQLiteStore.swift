@@ -7,6 +7,7 @@
 
 import Foundation
 import FMDB
+import SQLite3
 
 public actor SQLiteStore<I: Codable & Equatable>: CollectionStore {
     public let name: String
@@ -21,9 +22,17 @@ public actor SQLiteStore<I: Codable & Equatable>: CollectionStore {
 
     public init(name: String, databaseURL: URL) {
         self.name = name
+        do {
+            try FileManager.default.createDirectory(at: databaseURL.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: nil)
+        } catch {
+            print("Failed to create directory: \(error.localizedDescription)")
+        }
+
         self.db = FMDatabase(url: databaseURL)
         // self.dbQueue = FMDatabaseQueue(url: databaseURL)!
-        self.db.open()
+        let flags = SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX
+        let isOpen = self.db.open(withFlags: flags)
+        print("\(name) is open \(isOpen)")
         db.executeStatements("CREATE TABLE IF NOT EXISTS \(name) (data BLOB)")
 //        self.insertStatement = try? db.prepare("INSERT INTO \(name) (data) VALUES (?)").statement
 //        self.deleteStatement = try? db.prepare("DELETE FROM \(name) WHERE data = ?").statement
@@ -57,7 +66,7 @@ public actor SQLiteStore<I: Codable & Equatable>: CollectionStore {
                     let item = try JSONDecoder().decode(I.self, from: data)
                     collection.append(item)
                 } catch {
-                    print(error)
+                    print("\(name) : \(error)")
                 }
             }
         } while resultSet.next()
