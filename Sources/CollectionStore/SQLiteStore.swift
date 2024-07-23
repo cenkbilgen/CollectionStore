@@ -56,6 +56,28 @@ public actor SQLiteStore<I: Codable & Equatable>: CollectionStore {
         try db.executeUpdate("DELETE FROM \(name) WHERE data = ?", values: [data])
     }
 
+    public func queryStream(bufferSize: Int? = nil) throws -> AsyncStream<I> {
+        let (stream, continuation) = AsyncStream.makeStream(of: I.self, bufferingPolicy: bufferSize == nil ? .unbounded : .bufferingNewest(bufferSize!))
+        let resultSet = try db.executeQuery("SELECT data FROM \(name)", values: nil)
+        // just one col
+        Task {
+            repeat {
+                if let data = resultSet.data(forColumnIndex: 0) {
+                    do {
+                        let item = try JSONDecoder().decode(I.self, from: data)
+                        continuation.yield(item)
+                    } catch {
+                        print("\(name) : \(error)")
+                        continuation.finish()
+                    }
+                }
+            } while resultSet.next()
+            continuation.finish()
+        }
+
+        return stream
+    }
+
     public func query() async throws -> [I] {
         let resultSet = try db.executeQuery("SELECT data FROM \(name)", values: nil)
         // just one col
