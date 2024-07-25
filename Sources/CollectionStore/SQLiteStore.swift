@@ -50,9 +50,27 @@ public actor SQLiteStore<I: Codable & Equatable>: CollectionStore {
     public func insert(item: I) async throws {
         let data = try encoder.encode(item)
         if let item = item as? (any Identifiable) {
-            try db.executeUpdate("INSERT INTO \(name) (id, data) VALUES (?)",  values: [item.id, data])
+            try db.executeUpdate("INSERT INTO \(name) (id, data) VALUES (?, ?)",  values: [item.id, data])
         } else {
             try db.executeUpdate("INSERT INTO \(name) (data) VALUES (?)", values: [data])
+        }
+    }
+
+    public func insert<C: Collection<I>>(items: C) async throws {
+        try db.beginTransaction()
+        do {
+            for item in items {
+                let data = try encoder.encode(item)
+                if let identifiableItem = item as? (any Identifiable) {
+                    try db.executeUpdate("INSERT INTO \(name) (id, data) VALUES (?, ?)", values: [identifiableItem.id, data])
+                } else {
+                    try db.executeUpdate("INSERT INTO \(name) (data) VALUES (?)", values: [data])
+                }
+            }
+            try db.commit()
+        } catch {
+            try db.rollback()
+            throw error
         }
     }
 
