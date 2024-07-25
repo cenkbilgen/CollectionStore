@@ -33,7 +33,8 @@ public actor SQLiteStore<I: Codable & Equatable>: CollectionStore {
         let flags = SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX
         let isOpen = self.db.open(withFlags: flags)
         print("\(name) is open \(isOpen)")
-        db.executeStatements("CREATE TABLE IF NOT EXISTS \(name) (data BLOB)")
+        db.executeStatements("CREATE TABLE IF NOT EXISTS \(name) (id INTEGER PRIMARY KEY AUTOINCREMENT, data BLOB)")
+        //id INTEGER PRIMARY KEY AUTOINCREMENT,
 //        self.insertStatement = try? db.prepare("INSERT INTO \(name) (data) VALUES (?)").statement
 //        self.deleteStatement = try? db.prepare("DELETE FROM \(name) WHERE data = ?").statement
         self.encoder = JSONEncoder()
@@ -48,12 +49,20 @@ public actor SQLiteStore<I: Codable & Equatable>: CollectionStore {
 
     public func insert(item: I) async throws {
         let data = try encoder.encode(item)
-        try db.executeUpdate("INSERT INTO \(name) (data) VALUES (?)", values: [data])
+        if let item = item as? (any Identifiable) {
+            try db.executeUpdate("INSERT INTO \(name) (id, data) VALUES (?)",  values: [item.id, data])
+        } else {
+            try db.executeUpdate("INSERT INTO \(name) (data) VALUES (?)", values: [data])
+        }
     }
 
     public func remove(item: I) async throws {
         let data = try encoder.encode(item)
-        try db.executeUpdate("DELETE FROM \(name) WHERE data = ?", values: [data])
+        if let item = item as? (any Identifiable) {
+            try db.executeUpdate("DELETE FROM \(name) WHERE id = ?", values: [item.id])
+        } else {
+            try db.executeUpdate("DELETE FROM \(name) WHERE data = ?", values: [data])
+        }
     }
 
     public func queryStream(bufferSize: Int? = nil) throws -> AsyncStream<I> {
