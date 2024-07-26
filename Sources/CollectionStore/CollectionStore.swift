@@ -8,3 +8,7 @@ protocol CollectionStore {
     func remove(item: C.Element) async throws
     func query() async throws -> C
 }
+
+enum CollectionStoreError: Error {
+    case jsonStringUTF8Failed
+}
