@@ -38,7 +38,12 @@ public actor SQLiteStore<I: Codable & Equatable>: CollectionStore {
 //            db.executeStatements("CREATE TABLE IF NOT EXISTS \(name) (id STRING PRIMARY KEY, data BLOB)")
 //        } else {
 //            db.executeStatements("CREATE TABLE IF NOT EXISTS \(name) (id INTEGER PRIMARY KEY AUTOINCREMENT, data BLOB)")
-        db.executeStatements("CREATE TABLE IF NOT EXISTS \(name) (data BLOB)")
+        let createTableQuery = """
+    CREATE TABLE IF NOT EXISTS \(name) (
+        data BLOB UNIQUE
+    );
+    """
+        db.executeStatements(createTableQuery)
 //        }
         //id INTEGER PRIMARY KEY AUTOINCREMENT,
 //        self.insertStatement = try? db.prepare("INSERT INTO \(name) (data) VALUES (?)").statement
@@ -55,12 +60,7 @@ public actor SQLiteStore<I: Codable & Equatable>: CollectionStore {
 
     public func insert(item: I) async throws {
         let data = try encoder.encode(item)
-//        if let item = item as? (any Identifiable) {
-//            try db.executeUpdate("INSERT INTO \(name) (id, data) VALUES (?, ?)",  values: [item.id, data])
-//        } else {
-//            try db.executeUpdate("INSERT INTO \(name) (data) VALUES (?)", values: [data])
-//        }
-        try db.executeUpdate("INSERT INTO \(name) (data) VALUES (?)", values: [data])
+        try db.executeUpdate("INSERT OR IGNORE INTO \(name) (data) VALUES (?)", values: [data])
     }
 
     public func insert<C: Collection<I>>(items: C) async throws {
@@ -68,13 +68,7 @@ public actor SQLiteStore<I: Codable & Equatable>: CollectionStore {
         do {
             for item in items {
                 let data = try encoder.encode(item)
-//                if let identifiableItem = item as? (any Identifiable),
-//                   identifiableItem.id is CustomStringConvertible {
-//                    try db.executeUpdate("INSERT INTO \(name) (id, data) VALUES (?, ?)", values: [identifiableItem.id, data])
-//                } else {
-//                    try db.executeUpdate("INSERT INTO \(name) (data) VALUES (?)", values: [data])
-//                }
-                try db.executeUpdate("INSERT INTO \(name) (data) VALUES (?)", values: [data])
+                try db.executeUpdate("INSERT OR IGNORE INTO \(name) (data) VALUES (?)", values: [data])
             }
             try db.commit()
         } catch {
@@ -85,11 +79,6 @@ public actor SQLiteStore<I: Codable & Equatable>: CollectionStore {
 
     public func remove(item: I) async throws {
         let data = try encoder.encode(item)
-//        if let item = item as? (any Identifiable) {
-//            try db.executeUpdate("DELETE FROM \(name) WHERE id = ?", values: [item.id])
-//        } else {
-//            try db.executeUpdate("DELETE FROM \(name) WHERE data = ?", values: [data])
-//        }
         try db.executeUpdate("DELETE FROM \(name) WHERE data = ?", values: [data])
     }
 

@@ -12,11 +12,7 @@ import SQLite3
 public actor SQLiteJSONStore<I: Codable & Equatable>: CollectionStore {
     
     public let name: String
-    // private let dbQueue: FMDatabaseQueue
     private let db: FMDatabase
-
-//    private let insertStatement: FMStatement?
-//    private let deleteStatement: FMStatement?
 
     let encoder: JSONEncoder
     let decoder: JSONDecoder
@@ -30,7 +26,6 @@ public actor SQLiteJSONStore<I: Codable & Equatable>: CollectionStore {
         }
 
         self.db = FMDatabase(url: databaseURL)
-        // self.dbQueue = FMDatabaseQueue(url: databaseURL)!
         let flags = SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX
         let isOpen = self.db.open(withFlags: flags)
         print("\(name) is open \(isOpen)")
@@ -40,6 +35,14 @@ public actor SQLiteJSONStore<I: Codable & Equatable>: CollectionStore {
                json TEXT
            )
            """
+        // for FTS5, then use MATCH instead of LIKE
+//        let createTableQuery = """
+//               CREATE VIRTUAL TABLE IF NOT EXISTS Person USING fts5(
+//                   json,
+//                   tokenize = 'porter'
+//               );
+//               """
+
         db.executeStatements(createTableQuery)
 
         self.encoder = JSONEncoder()
