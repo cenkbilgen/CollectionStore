@@ -1,0 +1,2 @@
+- remove Equatable requirement
+- add optional argument for index of type from KeyPath 
