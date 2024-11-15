@@ -16,7 +16,7 @@ public actor SQLiteJSONStore<I: Codable & Equatable>: CollectionStore {
 
     let encoder: JSONEncoder
     let decoder: JSONDecoder
-
+    
     public init(name: String, databaseURL: URL) {
         self.name = name
         do {
@@ -178,6 +178,13 @@ public actor SQLiteJSONStore<I: Codable & Equatable>: CollectionStore {
         return stream
     }
 
+}
+
+extension SQLiteJSONStore {
+    public func modificationDate() throws -> Date? {
+        let values = try db.databaseURL?.resourceValues(forKeys: [.contentModificationDateKey])
+        return values?.contentModificationDate
+    }
 }
 
 // MARK: Utility

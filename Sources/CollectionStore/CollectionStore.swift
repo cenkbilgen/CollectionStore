@@ -12,3 +12,7 @@ protocol CollectionStore {
 enum CollectionStoreError: Error {
     case jsonStringUTF8Failed
 }
+
+protocol DateStamped {
+    var modifyDate: Date? { get set }
+}
