@@ -17,6 +17,8 @@ public actor SQLiteJSONStore<I: Codable & Equatable>: CollectionStore {
     let encoder: JSONEncoder
     let decoder: JSONDecoder
     
+    public var isNew: Bool
+    
     public init(name: String, databaseURL: URL) {
         self.name = name
         do {
@@ -29,6 +31,8 @@ public actor SQLiteJSONStore<I: Codable & Equatable>: CollectionStore {
         let flags = SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX
         let isOpen = self.db.open(withFlags: flags)
         print("\(name) is open \(isOpen)")
+        
+        self.isNew = !db.tableExists(name)
 
         let createTableQuery = """
            CREATE TABLE IF NOT EXISTS \(name) (
@@ -66,6 +70,7 @@ public actor SQLiteJSONStore<I: Codable & Equatable>: CollectionStore {
     public func insert(item: I) throws {
         let value = try jsonValue(item: item)
         try db.executeUpdate("INSERT INTO \(name) (json) VALUES (?)", values: [value])
+        isNew = false
     }
 
     public func insert<C: Collection<I>>(items: C) async throws {
