@@ -1,19 +1,24 @@
 Simple persistence store, when keeping a Collection of value types is all you need.
 
+
 ```swift
+// make a store of your value type. Anything `Codable` and `Equatable`.
 struct Dog: Codable, Equatable {
   let name: String
   let age: Int
 }
-```
-```swift
-let store = SQLiteStore<Dog>(name: "Dogs")
 
+let store = SQLiteStore<Dog>(name: "Dogs")
+```
+
+```swift
+// store values
 try await store.insert(items: [Dog(name: "Fido", age: 10),                                         
                                Dog(name: "Rex", age: 5)])
+```
 
-// ... retrieve values
-
+```swift 
+// retrieve values
 let dogs = try await store.query()
 ```
 
