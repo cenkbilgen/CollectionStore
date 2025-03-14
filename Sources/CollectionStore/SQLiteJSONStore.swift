@@ -9,6 +9,8 @@ import Foundation
 import FMDB
 import SQLite3
 
+// TODO: Make his SQLite based stores have their own protocol
+
 public actor SQLiteJSONStore<I: Codable & Equatable>: CollectionStore {
     
     public let name: String
@@ -55,7 +57,7 @@ public actor SQLiteJSONStore<I: Codable & Equatable>: CollectionStore {
 
     public init(name: String) {
         let fileURL = URL.applicationSupportDirectory
-            .appending(path: "\(name)-store-json.sql", directoryHint: .notDirectory)
+            .appending(path: "\(name)-json-store.sql", directoryHint: .notDirectory)
         self.init(name: name, databaseURL: fileURL)
     }
 
@@ -84,23 +86,6 @@ public actor SQLiteJSONStore<I: Codable & Equatable>: CollectionStore {
             try db.rollback()
             throw error
         }
-    }
-
-    public func query() async throws -> [I] {
-        let resultSet = try db.executeQuery("SELECT json FROM \(name)", values: nil)
-        // just one col
-        var collection: [I] = []
-        repeat {
-            if let data = resultSet.data(forColumnIndex: 0) {
-                do {
-                    let item = try decoder.decode(I.self, from: data)
-                    collection.append(item)
-                } catch {
-                    print("\(name) : \(error)")
-                }
-            }
-        } while resultSet.next()
-        return collection
     }
 
     public func query<I: Codable, V: Codable>(key: KeyPath<I, V>, value: V) throws -> [I] {
@@ -147,40 +132,60 @@ public actor SQLiteJSONStore<I: Codable & Equatable>: CollectionStore {
     }
 
     public func remove<I: Codable, V: Codable>(key: KeyPath<I, V>, value: V) {
-            let keyName = NSExpression(forKeyPath: key).keyPath
-            let deleteQuery = """
+        let keyName = NSExpression(forKeyPath: key).keyPath
+        let deleteQuery = """
             DELETE FROM \(name) WHERE json_extract(json, '$.\(keyName)') = ?
             """
+        
+        do {
+            try db.executeUpdate(deleteQuery, values: [String(describing: value)])
+        } catch {
+            print("Failed to delete record by key-path and value: \(error.localizedDescription)")
+        }
+    }
 
-            do {
-                try db.executeUpdate(deleteQuery, values: [String(describing: value)])
-            } catch {
-                print("Failed to delete record by key-path and value: \(error.localizedDescription)")
-            }
+    public func queryStream(bufferSize: Int? = nil, continueOnRecordFail: Bool = true) throws -> AsyncStream<I> {
+        let (stream, continuation) = AsyncStream.makeStream(of: I.self, bufferingPolicy: bufferSize == nil ? .unbounded : .bufferingNewest(bufferSize!))
+        let resultSet = try db.executeQuery("SELECT json FROM \(name)", values: nil)
+
+        defer {
+            resultSet.close()
         }
 
-    // MARK: Todo
-    
-    public func queryStream(bufferSize: Int? = nil) throws -> AsyncStream<I> {
-        let (stream, continuation) = AsyncStream.makeStream(of: I.self, bufferingPolicy: bufferSize == nil ? .unbounded : .bufferingNewest(bufferSize!))
-        let resultSet = try db.executeQuery("SELECT data FROM \(name)", values: nil)
-        // just one col
         Task {
             repeat {
-                if let data = resultSet.data(forColumnIndex: 0) {
+                guard !Task.isCancelled else {
+                    break
+                }
+                if let jsonString = resultSet.string(forColumn: "json") {
                     do {
-                        let item = try JSONDecoder().decode(I.self, from: data)
-                        continuation.yield(item)
+                        if let jsonData = jsonString.data(using: .utf8) {
+                            let item = try decoder.decode(I.self, from: jsonData)
+                            continuation.yield(item)
+                        } else {
+                            throw CollectionStoreError.jsonStringUTF8Failed
+                        }
                     } catch {
-                        print("\(name) : \(error)")
-                        continuation.finish()
+                        print("\(name) decode error: \(error)")
+                        if !continueOnRecordFail {
+                            continuation.finish()
+                            break
+                        }
                     }
                 }
             } while resultSet.next()
             continuation.finish()
         }
-
         return stream
+    }
+
+    public func query() async throws -> [I] {
+        var collection: [I] = []
+        let stream = try queryStream(continueOnRecordFail: true)
+        for await item in stream {
+            collection.append(item)
+        }
+        return collection
     }
 
 }

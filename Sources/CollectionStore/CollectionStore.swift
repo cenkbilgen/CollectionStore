@@ -11,6 +11,7 @@ protocol CollectionStore {
 
 enum CollectionStoreError: Error {
     case jsonStringUTF8Failed
+    case invalidSQLQueryResult
 }
 
 protocol DateStamped {

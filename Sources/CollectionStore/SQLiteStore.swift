@@ -57,6 +57,10 @@ public actor SQLiteStore<I: Codable & Equatable>: CollectionStore {
             .appending(path: "\(name)-store.sql", directoryHint: .notDirectory)
         self.init(name: name, databaseURL: fileURL)
     }
+    
+    deinit {
+        db.close()
+    }
 
     public func insert(item: I) async throws {
         let data = try encoder.encode(item)
@@ -81,45 +85,48 @@ public actor SQLiteStore<I: Codable & Equatable>: CollectionStore {
         let data = try encoder.encode(item)
         try db.executeUpdate("DELETE FROM \(name) WHERE data = ?", values: [data])
     }
-
-    public func queryStream(bufferSize: Int? = nil) throws -> AsyncStream<I> {
+    
+    public func queryStream(bufferSize: Int? = nil, continueOnRecordFail: Bool = true) throws -> AsyncStream<I> {
         let (stream, continuation) = AsyncStream.makeStream(of: I.self, bufferingPolicy: bufferSize == nil ? .unbounded : .bufferingNewest(bufferSize!))
         let resultSet = try db.executeQuery("SELECT data FROM \(name)", values: nil)
-        // just one col
+
+        defer {
+            resultSet.close()
+        }
+
         Task {
             repeat {
+                guard !Task.isCancelled else {
+                    break
+                }
                 if let data = resultSet.data(forColumnIndex: 0) {
                     do {
-                        let item = try JSONDecoder().decode(I.self, from: data)
+                        let item = try decoder.decode(I.self, from: data)
                         continuation.yield(item)
                     } catch {
-                        print("\(name) : \(error)")
-                        continuation.finish()
+                        print("\(name) decode error: \(error)")
+                        if !continueOnRecordFail {
+                            continuation.finish()
+                            break
+                        }
                     }
                 }
             } while resultSet.next()
             continuation.finish()
         }
-
         return stream
     }
 
+
     public func query() async throws -> [I] {
-        let resultSet = try db.executeQuery("SELECT data FROM \(name)", values: nil)
-        // just one col
         var collection: [I] = []
-        repeat {
-            if let data = resultSet.data(forColumnIndex: 0) {
-                do {
-                    let item = try JSONDecoder().decode(I.self, from: data)
-                    collection.append(item)
-                } catch {
-                    print("\(name) : \(error)")
-                }
-            }
-        } while resultSet.next()
+        let stream = try queryStream(continueOnRecordFail: true)
+        for await item in stream {
+            collection.append(item)
+        }
         return collection
     }
+
 }
 
 struct FMDBError: Error {
