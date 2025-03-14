@@ -16,3 +16,7 @@ try await store.insert(items: [Dog(name: "Fido", age: 10),
 
 let dogs = try await store.query()
 ```
+
+----
+
+To "INSERT OR REPLACE", make the record type `Identifiable` and use `SQLiteIndentifiableStore`.  Primary key will be the `id`.
