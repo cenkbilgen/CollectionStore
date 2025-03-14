@@ -7,12 +7,10 @@ struct Dog: Codable, Equatable {
 }
 ```
 ```swift
-let store = SQLiteStore<Dog>(name: "Dogs")
-
+ let store = SQLiteStore<Dog>(name: "Dogs")
+// ...
 try await store.insert(items: [Dog(name: "Fido", age: 10),                                         
                                Dog(name: "Rex", age: 5)])
-
-// ... retrieve values
-
+// ...
 let dogs = try await store.query()
 ```
